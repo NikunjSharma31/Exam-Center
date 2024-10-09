@@ -17,27 +17,36 @@ const questions = [
     answer: "O",
   },
   {
-    question: "What organ in the human body is primarily responsible for pumping blood?",
+    question:
+      "What organ in the human body is primarily responsible for pumping blood?",
     options: ["Brain", "Liver", "Stomach", "Heart"],
     answer: "Heart",
   },
   {
-    question: "What do we call the process by which water vapor turns into liquid water?",
+    question:
+      "What do we call the process by which water vapor turns into liquid water?",
     options: ["Evaporation", "Condensation", "Precipitation", "Sublimation"],
     answer: "Condensation",
   },
   {
-    question: "What is the state of matter that has a definite shape and a definite volume?",
+    question:
+      "What is the state of matter that has a definite shape and a definite volume?",
     options: ["Liquid", "Gas", "Solid", "Plasma"],
     answer: "Solid",
   },
   {
     question: "What is water composed of?",
-    options: ["Hydrogen and Carbon", "Hydrogen and Nitrogen", "Hydrogen and Oxygen", "Oxygen and Carbon"],
+    options: [
+      "Hydrogen and Carbon",
+      "Hydrogen and Nitrogen",
+      "Hydrogen and Oxygen",
+      "Oxygen and Carbon",
+    ],
     answer: "Hydrogen and Oxygen",
   },
   {
-    question: "What is the green pigment in plants that helps in photosynthesis?",
+    question:
+      "What is the green pigment in plants that helps in photosynthesis?",
     options: ["Carotene", "Xanthophyll", "Chlorophyll", "Anthocyanin"],
     answer: "Chlorophyll",
   },
@@ -47,8 +56,14 @@ const questions = [
     answer: "Crust",
   },
   {
-    question: "What is the name of the energy stored in an object due to its position or state?",
-    options: ["Kinetic Energy", "Thermal Energy", "Potential Energy", "Chemical Energy"],
+    question:
+      "What is the name of the energy stored in an object due to its position or state?",
+    options: [
+      "Kinetic Energy",
+      "Thermal Energy",
+      "Potential Energy",
+      "Chemical Energy",
+    ],
     answer: "Potential Energy",
   },
 ];
@@ -61,28 +76,15 @@ const Questionnaire = () => {
   const [hasReadCurrent, setHasReadCurrent] = useState(false);
   const [synth, setSynth] = useState(window.speechSynthesis);
   const [utterance, setUtterance] = useState(null);
-  const [exitAttempts, setExitAttempts] = useState(0);
+  const [timer, setTimer] = useState(600); // 10 minutes in seconds
+  const [isRecognitionActive, setIsRecognitionActive] = useState(false);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.hidden) {
-        alert("Please don’t switch tabs or applications during the test!");
-        speak("Warning: You have switched away from the test window.");
-      }
-    };
-
-    document.addEventListener("visibilitychange", handleVisibilityChange);
-
-    return () => {
-      document.removeEventListener("visibilitychange", handleVisibilityChange);
-    };
-  }, []);
-
-  useEffect(() => {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     if (SpeechRecognition) {
       const rec = new SpeechRecognition();
-      rec.continuous = false;
+      rec.continuous = true; // Set continuous listening
       rec.interimResults = false;
       rec.lang = "en-US";
 
@@ -93,74 +95,31 @@ const Questionnaire = () => {
 
       rec.onerror = (event) => {
         console.error("Speech recognition error:", event.error);
+        setIsRecognitionActive(false);
       };
 
-      rec.onstart = () => {
-        console.log("Speech recognition service has started");
+      rec.onend = () => {
+        console.log("Speech recognition service disconnected");
+        setIsRecognitionActive(false);
       };
 
       setRecognition(rec);
     } else {
-      alert("Your browser does not support Speech Recognition API. Please use Google Chrome.");
-      console.warn("Speech Recognition API is not supported in this browser.");
+      alert(
+        "Your browser does not support Speech Recognition API. Please use Google Chrome."
+      );
     }
   }, []);
 
-  const getOptionLetter = (index) => {
-    return String.fromCharCode(65 + index);
-  };
-
-  const handleSpeechResult = (speechResult) => {
-    setSpeechResult(speechResult);
-    const normalizedResult = speechResult.toLowerCase();
-    const options = questions[currentIndex].options;
-
-    console.log("Voice Command:", normalizedResult);
-
-    if (normalizedResult.includes("stop")) {
-      if (utterance) {
-        synth.cancel();
-        speak("Speech stopped.");
+  const startRecognition = () => {
+    if (recognition && !isRecognitionActive) {
+      try {
+        recognition.start();
+        setIsRecognitionActive(true);
+        speak("Voice command mode activated. Please say your command.");
+      } catch (error) {
+        console.error("Error starting recognition:", error);
       }
-      return;
-    }
-
-    if (normalizedResult.includes("previous")) {
-      handlePrevious();
-      return;
-    }
-
-    if (normalizedResult.includes("next")) {
-      handleNext();
-      return;
-    }
-
-    if (normalizedResult.includes("read")) {
-      readCurrentQuestionAndOptions();
-      return;
-    }
-
-    if (normalizedResult.includes("submit")) {
-      handleSubmit();
-      return;
-    }
-
-    let matched = false;
-    options.forEach((option, idx) => {
-      const letterCommand = `option ${getOptionLetter(idx)}`.toLowerCase();
-      const optionText = option.toLowerCase();
-      if (
-        normalizedResult.includes(letterCommand) ||
-        normalizedResult.includes(optionText)
-      ) {
-        handleOptionChange(option);
-        speak(`Selected option: ${option}`);
-        matched = true;
-      }
-    });
-
-    if (!matched) {
-      speak("Option not recognized. Please try again.");
     }
   };
 
@@ -190,7 +149,77 @@ const Questionnaire = () => {
   const handleSubmit = () => {
     speak("Form submitted successfully.");
     // Add form submission logic here
-    alert("Your test has been submitted!");
+  };
+
+  const handleSpeechResult = (speechResult) => {
+    setSpeechResult(speechResult);
+    const normalizedResult = speechResult.toLowerCase();
+    const options = questions[currentIndex].options;
+
+    console.log("Voice Command:", normalizedResult);
+
+    if (normalizedResult.includes("stop")) {
+      if (utterance) {
+        synth.cancel();
+        speak("Speech stopped.");
+      }
+      return;
+    }
+
+    if (normalizedResult.includes("previous")) {
+      if (currentIndex > 0) {
+        setCurrentIndex(currentIndex - 1);
+        setHasReadCurrent(false);
+        speak("Navigated to previous question.");
+        readCurrentQuestionAndOptions();
+      } else {
+        speak("This is the first question.");
+      }
+      return;
+    }
+
+    if (normalizedResult.includes("next")) {
+      if (currentIndex < questions.length - 1) {
+        setCurrentIndex(currentIndex + 1);
+        setHasReadCurrent(false);
+        speak("Navigated to next question.");
+        readCurrentQuestionAndOptions();
+      } else {
+        speak("This is the last question.");
+      }
+      return;
+    }
+
+    if (normalizedResult.includes("read")) {
+      readCurrentQuestionAndOptions();
+      return;
+    }
+
+    if (normalizedResult.includes("submit")) {
+      handleSubmit();
+      return;
+    }
+
+    let matched = false;
+    options.forEach((option, idx) => {
+      const letterCommand = `option ${getOptionLetter(idx)}`.toLowerCase();
+      const optionText = option.toLowerCase();
+      if (
+        normalizedResult.includes(letterCommand) ||
+        normalizedResult.includes(optionText)
+      ) {
+        setSelectedOptions({
+          ...selectedOptions,
+          [currentIndex]: option,
+        });
+        speak(`Selected option: ${option}`);
+        matched = true;
+      }
+    });
+
+    if (!matched) {
+      speak("Option not recognized. Please try again.");
+    }
   };
 
   const readCurrentQuestionAndOptions = () => {
@@ -198,12 +227,11 @@ const Questionnaire = () => {
 
     const questionText = questions[currentIndex].question;
     const optionsText = questions[currentIndex].options
-      .map((option, idx) => `Option ${getOptionLetter(idx)}: ${option}`)
+      .map(
+        (option, idx) => `Option ${String.fromCharCode(65 + idx)}: ${option}`
+      )
       .join(", ");
-    const selectedOptionText = selectedOptions[currentIndex]
-      ? `Selected option is ${selectedOptions[currentIndex]}`
-      : "";
-    const textToSpeak = `${questionText}. ${optionsText}. ${selectedOptionText}`;
+    const textToSpeak = `${questionText}. ${optionsText}.`;
 
     if (utterance) {
       synth.cancel();
@@ -217,20 +245,6 @@ const Questionnaire = () => {
     setHasReadCurrent(true);
   };
 
-  const startRecognition = () => {
-    if (recognition) {
-      try {
-        recognition.start();
-        speak("Voice command mode activated. Please say your command.");
-      } catch (error) {
-        console.error("Error starting recognition:", error);
-        speak("There was an error starting the voice command.");
-      }
-    } else {
-      speak("Speech recognition is not supported in this browser.");
-    }
-  };
-
   const speak = (text) => {
     if (utterance) {
       synth.cancel();
@@ -240,88 +254,63 @@ const Questionnaire = () => {
     synth.speak(newUtterance);
   };
 
-  // Full-Screen Mode Management
-  const startTestInFullscreen = () => {
-    const elem = document.documentElement;
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen();
-    } else if (elem.mozRequestFullScreen) {
-      elem.mozRequestFullScreen();
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) {
-      elem.msRequestFullscreen();
-    }
-  };
+  // Timer Effect Hook
+  useEffect(() => {
+    const timerInterval = setInterval(() => {
+      setTimer((prevTimer) => {
+        if (prevTimer === 0) {
+          clearInterval(timerInterval);
+          speak("Time is up!");
+        }
+        // return prevTimer - 1;
 
-  const handleFullscreenExit = () => {
-    setExitAttempts((prevAttempts) => {
-      const newAttempts = prevAttempts + 1;
+        return prevTimer > 0 ? prevTimer - 1 : prevTimer;
+      });
+    }, 1000);
 
-      if (newAttempts === 1) {
-        alert("Warning: Please stay in full-screen mode. If you exit again, your test will be submitted.");
-        speak("Warning: Please stay in full-screen mode.");
-        startTestInFullscreen(); // Attempt to re-enter full-screen mode
-      }
-
-      // Automatically submit the test after 2 exits from full-screen
-      if (newAttempts >= 2) {
-        handleSubmit(); // Call the submit function
-      }
-
-      return newAttempts;
-    });
-  };
+    return () => clearInterval(timerInterval);
+  }, []);
 
   useEffect(() => {
-    document.addEventListener("fullscreenchange", () => {
-      if (!document.fullscreenElement) {
-        handleFullscreenExit();
-      }
-    });
+    if (timer > 0 && timer % 60 === 0) {
+      const minutes = timer / 60;
+      speak(`${minutes} minutes remaining.`);
+    }
+  }, [timer]);
 
-    return () => {
-      document.removeEventListener("fullscreenchange", handleFullscreenExit);
-    };
-  }, []);
+  const formatTime = (seconds) => {
+    const minutes = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${minutes}:${secs < 10 ? `0${secs}` : secs}`;
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-4 bg-gray-100">
+      {/* Timer Display */}
+      <div className="fixed top-4 right-4 bg-gray-800 text-white py-2 px-4 rounded-md">
+        Timer: {formatTime(timer)}
+      </div>
+
       <div className="w-full max-w-lg bg-white shadow-md rounded-lg p-6">
         <h2 className="text-xl font-semibold mb-4">
           {questions[currentIndex].question}
         </h2>
-        {/* <ul className="list-disc list-inside mb-6">
-          {questions[currentIndex].options.map((option, idx) => (
-            <li key={idx} className="flex items-center mb-2">
-              <input
-                type="checkbox"
-                id={${currentIndex}-${idx}}
-              checked={selectedOptions[currentIndex] === option}
-              onChange={() => handleOptionChange(option)}
-              className="mr-2"
-              />
-              <label htmlFor={${currentIndex}-${idx}}>{`${getOptionLetter(
-                idx
-              )}: ${option}`}</label>
-            </li>
-          ))}
-      </ul> */}
         <ul className="list-disc list-inside mb-6">
           {questions[currentIndex].options.map((option, idx) => (
             <li key={idx} className="flex items-center mb-2">
               <input
-                type="radio"
+                type="checkbox"
                 id={`${currentIndex}-${idx}`}
-                name={`question_${currentIndex}`}
                 checked={selectedOptions[currentIndex] === option}
                 onChange={() => handleOptionChange(option)}
                 className="mr-2"
               />
-              <label htmlFor={`${currentIndex}-${idx}`}>{`${getOptionLetter(idx)}: ${option}`}</label>
+              <label htmlFor={`${currentIndex}-${idx}`}>
+                {`${String.fromCharCode(65 + idx)}: ${option}`}
+              </label>
             </li>
           ))}
         </ul>
-
         <div className="flex justify-between mb-4">
           <button
             onClick={handlePrevious}
@@ -364,7 +353,7 @@ const Questionnaire = () => {
           <p>{speechResult}</p>
         </div>
       </div>
-    </div >
+    </div>
   );
 };
 
